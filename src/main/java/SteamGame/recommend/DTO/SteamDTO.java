@@ -7,6 +7,22 @@ import lombok.Setter;
 import java.util.List;
 
 public class SteamDTO {
+    /*
+    {
+  "applist": {
+    "apps": [
+      {
+        "appid": 10,
+        "name": "Counter-Strike"
+      },
+      {
+        "appid": 20,
+        "name": "Team Fortress Classic"
+      }
+    ]
+  }
+} 형태로 반환되기에 해당 DTO로 설정
+     */
 
     @Getter @Setter
     @JsonIgnoreProperties(ignoreUnknown = true)

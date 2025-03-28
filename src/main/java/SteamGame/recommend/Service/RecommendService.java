@@ -83,7 +83,6 @@ public class RecommendService {
                 .get()
                 .uri(uriBuilder -> uriBuilder
                         .queryParam("appids", appId)
-                        .queryParam("l", "koreana")
                         .build())
                 .retrieve()
                 .bodyToMono(String.class)
