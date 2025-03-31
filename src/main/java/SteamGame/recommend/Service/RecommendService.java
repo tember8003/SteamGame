@@ -83,6 +83,7 @@ public class RecommendService {
                 .get()
                 .uri(uriBuilder -> uriBuilder
                         .queryParam("appids", appId)
+                        .queryParam("l","korean")
                         .build())
                 .retrieve()
                 .bodyToMono(String.class)
@@ -97,13 +98,27 @@ public class RecommendService {
                         String type = appNode.path("data").path("type").asText("");
 
                         if (success && "game".equalsIgnoreCase(type)) {
-                            return Mono.just(randomApp);
+                            JsonNode dataNode = appNode.path("data");
+                            int steamAppId = dataNode.path("steam_appid").asInt();
+                            String name = dataNode.path("name").asText();
+                            String shortDescription = dataNode.path("short_description").asText("");
+                            String headerImage = dataNode.path("header_image").asText("");
+
+                            SteamDTO.SteamApp steamApp = new SteamDTO.SteamApp();
+                            steamApp.setAppid(steamAppId);
+                            steamApp.setName(name);
+                            steamApp.setShortDescription(shortDescription);
+                            steamApp.setHeaderImage(headerImage);
+
+                            return Mono.just(steamApp);
                         }
                     } catch (Exception ignored) {}
 
                     return tryFindValidGame(appList, attemptsLeft - 1); // 재귀로 다시 시도
                 });
     }
+
+
 
     @Scheduled(cron = "0 0 5 * * *") // 매일 새벽 3시
     public void updateSteamAppList() {

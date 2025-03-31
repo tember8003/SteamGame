@@ -41,5 +41,7 @@ public class SteamDTO {
     public static class SteamApp {
         private int appid;
         private String name;
+        private String shortDescription;
+        private String headerImage;
     }
 }
