@@ -13,6 +13,8 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -45,8 +47,8 @@ public class RecommendService {
     }
     */
 
-    public Mono<SteamDTO.SteamApp> findRandomGame() {
-        return getValidAppList().flatMap(appList -> tryFindValidGame(appList, 10)); // 최대 10번 시도
+    public Mono<SteamDTO.SteamApp> findRandomGame(String[] tags, int review) {
+        return getValidAppList().flatMap(appList -> tryFindValidGame(appList, 50, tags, review)); // 최대 10번 시도
     }
 
     private Mono<List<SteamDTO.SteamApp>> getValidAppList() {
@@ -70,7 +72,7 @@ public class RecommendService {
                 });
     }
 
-    private Mono<SteamDTO.SteamApp> tryFindValidGame(List<SteamDTO.SteamApp> appList, int attemptsLeft) {
+    private Mono<SteamDTO.SteamApp> tryFindValidGame(List<SteamDTO.SteamApp> appList, int attemptsLeft, String[] tags, int review) {
         if (attemptsLeft <= 0) return Mono.error(new RuntimeException("유효한 게임을 찾을 수 없음"));
 
         SteamDTO.SteamApp randomApp = appList.get(random.nextInt(appList.size()));
@@ -96,8 +98,31 @@ public class RecommendService {
                         JsonNode appNode = rootNode.path(String.valueOf(appId));
                         boolean success = appNode.path("success").asBoolean(false);
                         String type = appNode.path("data").path("type").asText("");
+                        int reviewCount = appNode.path("data").path("recommendations").path("total").asInt(0);
+                        JsonNode genresNode = appNode.path("data").path("genres");
+                        JsonNode categoriesNode = appNode.path("data").path("categories");
 
-                        if (success && "game".equalsIgnoreCase(type)) {
+                        boolean check_tag = true;
+                        // genres + categories 합치기
+                        List<String> allTags = new ArrayList<>();
+                        genresNode.forEach(node -> allTags.add(node.path("description").asText("").toLowerCase()));
+                        categoriesNode.forEach(node -> allTags.add(node.path("description").asText("").toLowerCase()));
+                        
+                        /* 디버깅용
+                        for(int i=0; i<allTags.size(); i++){
+                            log.info("장르 + 카테고리 디버깅: "+allTags.get(i));
+                        }
+                        
+                         */
+
+                        for(String tag : tags){
+                            if(!allTags.contains(tag.toLowerCase())){
+                                check_tag=false;
+                                break;
+                            }
+                        }
+
+                        if (success && "game".equalsIgnoreCase(type) && review <= reviewCount && check_tag) {
                             JsonNode dataNode = appNode.path("data");
                             int steamAppId = dataNode.path("steam_appid").asInt();
                             String name = dataNode.path("name").asText();
@@ -114,7 +139,9 @@ public class RecommendService {
                         }
                     } catch (Exception ignored) {}
 
-                    return tryFindValidGame(appList, attemptsLeft - 1); // 재귀로 다시 시도
+                    //steam api 오류 피하기
+                    return Mono.delay(Duration.ofMillis(300))
+                            .then(tryFindValidGame(appList, attemptsLeft - 1, tags, review)); // 재귀로 다시 시도
                 });
     }
 

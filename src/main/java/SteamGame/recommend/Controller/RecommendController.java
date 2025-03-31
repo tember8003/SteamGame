@@ -4,6 +4,7 @@ import SteamGame.recommend.DTO.SteamDTO;
 import SteamGame.recommend.Service.RecommendService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
@@ -16,8 +17,9 @@ public class RecommendController {
         this.recommendService = recommendService;
     }
 
+    //태그 : 인디 / 액션 / 생존 / 어드벤처 / 캐주얼 / 싱글 플레이어 / RPG / 시뮬레이션 / 전략 등등
     @GetMapping("/recommand/random")
-    public Mono<SteamDTO.SteamApp> RandomGame(){
-        return recommendService.findRandomGame();
+    public Mono<SteamDTO.SteamApp> RandomGame(@RequestParam String[] tags,@RequestParam int review){
+        return recommendService.findRandomGame(tags,review);
     }
 }
