@@ -48,7 +48,7 @@ public class RecommendService {
     */
 
     public Mono<SteamDTO.SteamApp> findRandomGame(String[] tags, int review) {
-        return getValidAppList().flatMap(appList -> tryFindValidGame(appList, 50, tags, review)); // 최대 10번 시도
+        return getValidAppList().flatMap(appList -> tryFindValidGame(appList, 1000, tags, review)); // 최대 1000번 시도
     }
 
     private Mono<List<SteamDTO.SteamApp>> getValidAppList() {
@@ -108,12 +108,10 @@ public class RecommendService {
                         genresNode.forEach(node -> allTags.add(node.path("description").asText("").toLowerCase()));
                         categoriesNode.forEach(node -> allTags.add(node.path("description").asText("").toLowerCase()));
                         
-                        /* 디버깅용
+
                         for(int i=0; i<allTags.size(); i++){
                             log.info("장르 + 카테고리 디버깅: "+allTags.get(i));
                         }
-                        
-                         */
 
                         for(String tag : tags){
                             if(!allTags.contains(tag.toLowerCase())){
