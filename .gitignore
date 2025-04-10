@@ -25,6 +25,8 @@ bin/
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
+__pycache__/
+.env
 
 ### NetBeans ###
 /nbproject/private/
