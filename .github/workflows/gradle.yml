@@ -60,6 +60,11 @@ jobs:
     permissions:
       contents: write
 
+    defaults:
+      run:
+        working-directory: backend 
+    
+
     steps:
     - uses: actions/checkout@v4
     - name: Set up JDK 17
