@@ -22,4 +22,9 @@ public class RecommendController {
     public Mono<SteamDTO.SteamApp> RandomGame(@RequestParam String[] tags,@RequestParam int review){
         return recommendService.findRandomGame(tags,review);
     }
+
+    @GetMapping("/recommand/random_mysql")
+    public Mono<SteamDTO.SteamApp> RandomGame_MySQL(@RequestParam String[] tags){
+        return recommendService.findGameFromMySQL(tags);
+    }
 }

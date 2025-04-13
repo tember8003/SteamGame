@@ -1,6 +1,8 @@
 package SteamGame.recommend.Service;
 
 import SteamGame.recommend.DTO.SteamDTO;
+import SteamGame.recommend.Entity.Game;
+import SteamGame.recommend.Repository.GameRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -14,9 +16,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -40,6 +40,9 @@ public class RecommendService {
 
     @Autowired
     private WebClient.Builder webClientBuilder;
+
+    @Autowired
+    private GameRepository gameRepository;
 
     /*
     public RecommendService(WebClient.Builder webClientBuilder){
@@ -143,6 +146,22 @@ public class RecommendService {
                 });
     }
 
+    public Mono<SteamDTO.SteamApp> findGameFromMySQL(String[] tags) {
+        List<String> tagList = Arrays.asList(tags);
+        Optional<Game> optionalGame = gameRepository.findRandomGameByTags(tagList, tagList.size());
+
+        if (optionalGame.isEmpty()) {
+            throw new RuntimeException("조건에 맞는 게임을 찾을 수 없습니다.");
+        }
+
+        Game game = optionalGame.get();
+        SteamDTO.SteamApp app = new SteamDTO.SteamApp();
+        app.setName(game.getName());
+        app.setAppid(game.getAppid());
+        app.setShortDescription(game.getDescription());
+        app.setHeaderImage(game.getImageUrl());
+        return Mono.just(app);
+    }
 
 
     @Scheduled(cron = "0 0 5 * * *") // 매일 새벽 3시
