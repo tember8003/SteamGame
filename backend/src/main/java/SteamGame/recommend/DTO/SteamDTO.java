@@ -39,7 +39,7 @@ public class SteamDTO {
     @Getter @Setter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SteamApp {
-        private int appid;
+        private Long appid;
         private String name;
         private String shortDescription;
         private String headerImage;

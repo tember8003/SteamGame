@@ -79,7 +79,7 @@ public class RecommendService {
         if (attemptsLeft <= 0) return Mono.error(new RuntimeException("유효한 게임을 찾을 수 없음"));
 
         SteamDTO.SteamApp randomApp = appList.get(random.nextInt(appList.size()));
-        int appId = randomApp.getAppid();
+        Long appId = randomApp.getAppid();
 
         return webClientBuilder.baseUrl("https://store.steampowered.com/api/appdetails")
                 .exchangeStrategies(strategies)
@@ -125,7 +125,7 @@ public class RecommendService {
 
                         if (success && "game".equalsIgnoreCase(type) && review <= reviewCount && check_tag) {
                             JsonNode dataNode = appNode.path("data");
-                            int steamAppId = dataNode.path("steam_appid").asInt();
+                            Long steamAppId = dataNode.path("steam_appid").asLong();
                             String name = dataNode.path("name").asText();
                             String shortDescription = dataNode.path("short_description").asText("");
                             String headerImage = dataNode.path("header_image").asText("");
@@ -146,9 +146,9 @@ public class RecommendService {
                 });
     }
 
-    public Mono<SteamDTO.SteamApp> findGameFromMySQL(String[] tags) {
+    public Mono<SteamDTO.SteamApp> findGameFromMySQL(String[] tags,int review, boolean korean_check) {
         List<String> tagList = Arrays.asList(tags);
-        Optional<Game> optionalGame = gameRepository.findRandomGameByTags(tagList, tagList.size());
+        Optional<Game> optionalGame = gameRepository.findRandomGameByTags(tagList, tagList.size(),review,korean_check);
 
         if (optionalGame.isEmpty()) {
             throw new RuntimeException("조건에 맞는 게임을 찾을 수 없습니다.");

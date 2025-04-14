@@ -1,10 +1,7 @@
 package SteamGame.recommend.Entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Entity
 @Table(name = "games")
@@ -26,4 +23,9 @@ public class Game {
     @Column(name = "image_url")
     private String imageUrl;
 
+    @Column(name = "review_count")
+    private int reviewCount;
+
+    @Column(name = "korean_support")
+    private boolean koreanSupport;
 }
