@@ -43,5 +43,6 @@ public class SteamDTO {
         private String name;
         private String shortDescription;
         private String headerImage;
+        private String steamStore;
     }
 }
