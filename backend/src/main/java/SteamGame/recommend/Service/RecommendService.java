@@ -99,7 +99,7 @@ public class RecommendService {
                 .bodyToMono(String.class)
                 .doOnNext(response -> log.info(">>> Gemini 응답: {}", response))
                 .doOnError(e -> log.error(">>> Gemini 호출 중 예외 발생", e))
-                .then(Mono.empty());  // 반환값 없이 종료
+                .then(Mono.empty());
     }
 
 
