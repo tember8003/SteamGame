@@ -1,13 +1,16 @@
 package SteamGame.recommend;
 
+import SteamGame.recommend.Service.RecommendService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import reactor.core.publisher.Mono;
 
 @SpringBootTest
-class RecommendApplicationTests {
+public class RecommendApplicationTests {
 
 	@Test
-	void contextLoads() {
+	public void selectInfoTest() {
 	}
 
 }

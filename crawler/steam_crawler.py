@@ -14,8 +14,9 @@ conn = mysql.connector.connect(
     host=os.getenv("DB_HOST"),
     user=os.getenv("DB_USER"),
     password=os.getenv("DB_PASSWORD"),
-    database=os.getenv("DB_NAME")
+    database=os.getenv("DB_NAME"),
 )
+
 cursor = conn.cursor()
 
 def is_korean_supported(supported_languages_raw):
@@ -42,7 +43,7 @@ def fetch_game_details(appid, retries=3):
         try:
             response = requests.get(url, timeout=10)
             if response.status_code == 429:
-                print(f"⚠️ 429 Too Many Requests: appid {appid} → 재시도 ({attempt+1}/{retries})")
+                print(f"429 Too Many Requests: appid {appid} → 재시도 ({attempt+1}/{retries})")
                 time.sleep(5 + attempt * 3)  # 점진적으로 대기시간 증가
                 continue
             response.raise_for_status()
@@ -51,10 +52,10 @@ def fetch_game_details(appid, retries=3):
                 return None
             return data[str(appid)]["data"]
         except Exception as e:
-            print(f"❌ appid {appid}에서 오류 발생 (재시도 {attempt+1}): {e}")
+            print(f" appid {appid}에서 오류 발생 (재시도 {attempt+1}): {e}")
             time.sleep(2)
     # 3회 실패 시
-    print(f"❌ appid {appid} → 3회 재시도 실패")
+    print(f" appid {appid} → 3회 재시도 실패")
     with open("failed_appids.txt", "a") as fail_log:
         fail_log.write(f"{appid}\n")
     return None
@@ -99,10 +100,9 @@ def insert_game_and_tags(appid, name, description, image_url, tags, review_count
             cursor.execute("INSERT IGNORE INTO game_tags (game_id, tag_id) VALUES (%s, %s)", (game_id, tag_id))
             conn.commit()
     except Exception as e:
-        print(f"❌ Error inserting {name} ({appid}):", e)
+        print(f"Error inserting {name} ({appid}):", e)
 
 # 크롤링 시작
-log_file = open("crawler_log.txt", "a", encoding="utf-8")
 apps = fetch_all_apps()
 print(f"총 {len(apps)}개의 앱을 가져왔습니다.")
 
@@ -122,7 +122,7 @@ for i in range(last_processed_index, min(len(apps), last_processed_index + 30000
         name = app["name"]
 
         if not name:
-            print(f"❌ 이름 없는 앱 건너뜀: appid {appid}")
+            print(f"이름 없는 앱 건너뜀: appid {appid}")
             time.sleep(random.uniform(1, 2.5))
             continue
 
@@ -131,13 +131,11 @@ for i in range(last_processed_index, min(len(apps), last_processed_index + 30000
         details = fetch_game_details(appid)
         if not details:
             print(f"⚠️ 세부 정보 없음: appid {appid}")
-            log_file.write(f"{time.ctime()} ⚠️ appid {appid} → 세부 정보 없음\n")
             time.sleep(random.uniform(1, 2.5))
             continue
 
         if details.get("type") != "game":
-            print(f"⛔ type이 'game'이 아님: {appid} → {details.get('type')}")
-            log_file.write(f"{time.ctime()} ⛔ appid {appid} → type: {details.get('type')}\n")
+            print(f"type이 'game'이 아님: {appid} → {details.get('type')}")
             time.sleep(random.uniform(1, 2.5))
             continue
 
@@ -146,17 +144,16 @@ for i in range(last_processed_index, min(len(apps), last_processed_index + 30000
         review_count = details.get("recommendations", {}).get("total", 0)
         lang_html = details.get("supported_languages", "")
 
-        print(f"🌍 지원 언어(raw): {lang_html}")
+        print(f"지원 언어(raw): {lang_html}")
 
         korean_supported = is_korean_supported(lang_html)
-        print(f"📝 리뷰: {review_count} / 한국어 지원: {korean_supported}")
+        print(f"리뷰: {review_count} / 한국어 지원: {korean_supported}")
 
         tags = fetch_tags_from_store(appid)
-        print(f"🏷️ 태그 {len(tags)}개 크롤링됨")
+        print(f"태그 {len(tags)}개 크롤링됨")
 
         insert_game_and_tags(appid, name, description, image_url, tags, review_count, korean_supported)
-        log_file.write(f"{time.ctime()} ✅ 저장 완료: {name} ({appid})\n")
-        print(f"✅ DB 저장 완료: {appid} - {name}")
+        print(f"DB 저장 완료: {appid} - {name}")
 
         time.sleep(random.uniform(1, 2.5))
 
@@ -165,20 +162,20 @@ for i in range(last_processed_index, min(len(apps), last_processed_index + 30000
         f.write(str(i + batch_size))
 
 # 실패 앱 재시도
-print("📌 실패한 앱 재시도 중...")
+print("실패한 앱 재시도 중...")
 if os.path.exists("failed_appids.txt"):
     with open("failed_appids.txt", "r") as f:
         failed_ids = [line.strip() for line in f if line.strip().isdigit()]
 
     for appid in failed_ids:
         appid = int(appid)
-        print(f"⏳ 재시도 중: {appid}")
+        print(f"재시도 중: {appid}")
         details = fetch_game_details(appid)
         if not details or details.get("type") != "game":
             continue
 
         lang_html = details.get("supported_languages", "")
-        print(f"🌍 지원 언어(raw): {lang_html}")
+        print(f"지원 언어(raw): {lang_html}")
 
         name = details.get("name", "")
         description = details.get("short_description", "")
@@ -191,6 +188,5 @@ if os.path.exists("failed_appids.txt"):
         insert_game_and_tags(appid, name, description, image_url, tags, review_count, korean_supported)
         time.sleep(random.uniform(1, 2.5))
 
-log_file.close()
 cursor.close()
 conn.close()
