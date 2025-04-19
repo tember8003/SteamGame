@@ -22,6 +22,7 @@ public class RecommendController {
         return recommendService.findGame(tags, review,korean_check);
     }
 
+    //Gemini API를 사용해 추천함
     @PostMapping("/recommend/input")
     public Mono<SteamDTO.SteamApp> inputRandomGame(@RequestBody Map<String, String> body){
         String input = body.get("input");
