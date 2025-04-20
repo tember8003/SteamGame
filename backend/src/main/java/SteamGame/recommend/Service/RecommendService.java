@@ -8,10 +8,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DigestUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -22,7 +26,7 @@ import java.util.regex.Pattern;
 public class RecommendService {
 
     private final GameRepository gameRepository;
-    private final RedisTemplate<String,Boolean> redisTemplate;
+    private final RedisTemplate<String,String> redisTemplate;
     private final WebClient.Builder webClientBuilder;
 
     //TODO : 스팀 API APP DETAIL에서 정보 가져오기
@@ -38,7 +42,7 @@ public class RecommendService {
     private final String STEAM_STORE_URL = "https://store.steampowered.com/app/";
     private final String GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
-    public RecommendService(GameRepository gameRepository, RedisTemplate<String, Boolean> redisTemplate, WebClient.Builder webClientBuilder) {
+    public RecommendService(GameRepository gameRepository, RedisTemplate<String, String> redisTemplate, WebClient.Builder webClientBuilder) {
         this.gameRepository = gameRepository;
         this.redisTemplate = redisTemplate;
         this.webClientBuilder = webClientBuilder;
@@ -58,8 +62,8 @@ public class RecommendService {
             Game candidate = optionalGame.get();
             String redisKey = "recommended:" + candidate.getAppid();
 
-            if (!Boolean.TRUE.equals(redisTemplate.hasKey(redisKey))) {
-                redisTemplate.opsForValue().set(redisKey, true, Duration.ofMinutes(30));
+            if (!"true".equals(redisTemplate.opsForValue().get(redisKey))) {
+                redisTemplate.opsForValue().set(redisKey, "true", Duration.ofMinutes(30));
                 return Mono.just(convertToDTO(candidate));
             }
         }
@@ -69,23 +73,32 @@ public class RecommendService {
 
 
     public Mono<SteamDTO.SteamApp> selectInfo(String input) {
+        String shaInput = sha256(input);
+        String redisKey = "gemini:tag:"+shaInput;
+
+
+        List<String> cachingTags = redisTemplate.opsForList().range(redisKey, 0, -1);
+        if(cachingTags != null && !cachingTags.isEmpty()){
+            return findGame(cachingTags.toArray(new String[0]), 500, true);
+        }
+
         String prompt = """
         다음 문장을 보고 아래 태그 중 관련된 태그를 최대 4개 추출해 JSON 배열 형태로 출력해.
         
         태그 목록:
-        ["2D", "3D", "RPG", "액션", "어드벤처", "캐주얼", "인디", "전략", "시뮬레이션", "멀티 플레이어", "싱글 플레이어", "협동", "앞서 해보기", "오픈 월드", "풍부한 스토리", "퍼즐", "플랫폼", "슈팅", "FPS", "3인칭", "VR", "판타지", "SF", "공포", "생존", "애니메이션", "비주얼 노벨", "픽셀 그래픽", "턴제", "카드 게임", "샌드박스", "건설", "크래프팅", "미스터리", "코미디", "어두운", "고어", "폭력", "귀여운", "심리적 공포", "수사", "좀비", "온라인 협동", "핵 앤 슬래시", "격투", "비뎀업", "탄막 슈팅", "횡스크롤", "로그라이크", "로그라이트", "액션 RPG", "액션 어드벤처", "MMO", "JRPG", "던전 크롤러", "매치 3", "스포츠", "레이싱", "1인칭", "3인칭 슈팅", "리듬", "음악", "경영", "클리커", "전술", "잠입", "탐험"]
+        ["2D", "3D", "RPG", "액션", "어드벤처", "캐주얼", "인디", "전략", "시뮬레이션", "멀티플레이어", "싱글 플레이어", "협동", "앞서 해보기", "오픈 월드", "풍부한 스토리", "퍼즐", "플랫폼", "슈팅", "FPS", "3인칭", "VR", "판타지", "SF", "공포", "생존", "애니메이션", "비주얼 노벨", "픽셀 그래픽", "턴제", "카드 게임", "샌드박스", "건설", "크래프팅", "미스터리", "코미디", "어두운", "고어", "폭력", "귀여운", "심리적 공포", "수사", "좀비", "온라인 협동", "핵 앤 슬래시", "격투", "비뎀업", "탄막 슈팅", "횡스크롤", "로그라이크", "로그라이트", "액션 RPG", "액션 어드벤처", "MMO", "JRPG", "던전 크롤러", "매치 3", "스포츠", "레이싱", "1인칭", "3인칭 슈팅", "리듬", "음악", "경영", "클리커", "전술", "잠입", "탐험"]
         
                 예시 1:
                 입력 문장: 롤 같은 게임
-                출력: ["MOBA", "멀티 플레이어", "실시간"]
+                출력: ["MOBA", "멀티플레이어", "실시간"]
                 
                 예시 2:
                 입력 문장: 친구와 같이 즐길 수 있는 로그라이크 게임 추천해줘
-                출력: ["로그라이크", "멀티 플레이어", "협동"]
+                출력: ["로그라이크", "멀티플레이어", "협동"]
                 
                 예시 3:
                 입력 문장: 혼자 조용히 몰입해서 할 수 있는 감성적인 스토리 게임
-                출력: ["싱글플레이어", "풍부한 스토리", "어드벤처"]
+                출력: ["싱글 플레이어", "풍부한 스토리", "어드벤처"]
                 예시 4:
                 입력 문장: 스팀덱으로 하기 좋은 픽셀 그래픽 로그라이크
                 출력: ["픽셀 그래픽", "로그라이크", "싱글 플레이어"]
@@ -119,15 +132,27 @@ public class RecommendService {
                 .retrieve()
                 .bodyToMono(String.class)
                 .flatMap(response -> {
-                    log.info(">>> Gemini 응답: {}", response);
+                    log.info("Gemini 응답: {}", response);
                     String[] tags = extractTags(response);
-                    log.info(">>> 추출된 태그: {}", Arrays.toString(tags));
+                    log.info("추출된 태그: {}", Arrays.toString(tags));
+                    if (tags.length == 0) {
+                        log.warn("태그 추출 실패, 기본 태그 반환");
+                        tags = new String[]{"싱글 플레이어","멀티플레이어"};
+                    }
+
+                    redisTemplate.opsForList().rightPushAll(redisKey, Arrays.asList(tags));
+                    redisTemplate.expire(redisKey, Duration.ofHours(6));
+
                     return findGame(tags, 500, true);
                 })
-                .doOnError(e -> log.error(">>> Gemini 호출 중 예외 발생", e));
+                .doOnError(e -> log.error("Gemini 호출 중 예외 발생", e))
+                .onErrorResume(e -> {
+                    String[] defaultTag = {"멀티플레이어", "싱글 플레이어"};
+                    return findGame(defaultTag, 500, true);
+                });
     }
 
-    public String[] extractTags(String geminiResponse) {
+    private String[] extractTags(String geminiResponse) {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
             JsonNode root = objectMapper.readTree(geminiResponse);
@@ -143,15 +168,17 @@ public class RecommendService {
 
                 if (matcher.find()) {
                     String jsonArray = matcher.group(0);
-                    return objectMapper.readValue(jsonArray, String[].class);
+                    String[] tags = objectMapper.readValue(jsonArray, String[].class);
+
+                    return Arrays.copyOf(tags, Math.min(tags.length, 4));
                 } else {
-                    log.warn(">>> 태그 배열 형식을 파싱하지 못했습니다. 응답 텍스트: {}", text);
+                    log.warn("태그 배열 형식을 파싱하지 못했습니다. 응답 텍스트: {}", text);
                 }
             } else {
-                log.warn(">>> Gemini 응답 구조에서 text 필드를 찾지 못했습니다.");
+                log.warn("Gemini 응답 구조에서 text 필드를 찾지 못했습니다.");
             }
         } catch (Exception e) {
-            log.error(">>> Gemini 응답에서 태그 파싱 중 오류 발생", e);
+            log.error("Gemini 응답에서 태그 파싱 중 오류 발생", e);
         }
 
         return new String[0];
@@ -166,6 +193,24 @@ public class RecommendService {
         app.setHeaderImage(game.getImageUrl());
         app.setSteamStore(STEAM_STORE_URL + game.getAppid() + "?l=korean");
         return app;
+    }
+
+    private static String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] sha256Bytes = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : sha256Bytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 실패", e);
+        }
     }
 
 }
