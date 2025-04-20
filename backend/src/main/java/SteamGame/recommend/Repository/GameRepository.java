@@ -26,5 +26,4 @@ public interface GameRepository extends JpaRepository<Game, Long> {
     """, nativeQuery = true)
     Optional<Game> findRandomGameByTags(@Param("tagNames") List<String> tagNames, @Param("tagCount") long tagCount, @Param("review") int review, @Param("korean_check") boolean korean_check);
 
-
 }
