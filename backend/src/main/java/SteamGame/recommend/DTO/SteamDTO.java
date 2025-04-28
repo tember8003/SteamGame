@@ -29,4 +29,11 @@ public class SteamDTO {
         private String headerImage;
         private String steamStore;
     }
+
+    //태그와 게임 정보 함께 반환하기 -> 우선 SteamDTO에 함께 둠.
+    @Getter @Setter
+    public static class RecommendationResult {
+        private List<String> usedTags;
+        private SteamApp recommendedGame;
+    }
 }
