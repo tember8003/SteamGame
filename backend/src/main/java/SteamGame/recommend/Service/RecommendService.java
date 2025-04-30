@@ -2,7 +2,11 @@ package SteamGame.recommend.Service;
 
 import SteamGame.recommend.DTO.SteamDTO;
 import SteamGame.recommend.Entity.Game;
+import SteamGame.recommend.Entity.TagCooccurrence;
+import SteamGame.recommend.Entity.TagPairKey;
+import SteamGame.recommend.Repository.CooccurrenceRepository;
 import SteamGame.recommend.Repository.GameRepository;
+import SteamGame.recommend.Repository.TagRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -22,8 +26,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.*;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -33,6 +39,9 @@ public class RecommendService {
     private final RedisTemplate<String,String> redisTemplate;
     private final WebClient.Builder webClientBuilder;
     private final ObjectMapper objectMapper;
+    private final TagRepository tagRepository;
+    private final CooccurrenceRepository cooccurrenceRepository;
+    private static final int CO_THRESHOLD = 5;
 
     //TODO : 스팀 API APP DETAIL에서 정보 가져오기
     @Value("${steam.api.key}")
@@ -46,11 +55,14 @@ public class RecommendService {
     private static final List<String> FALLBACK_TAGS = List.of("싱글 플레이어","멀티플레이어");
 
     public RecommendService(GameRepository gameRepository, RedisTemplate<String, String> redisTemplate,
-                            WebClient.Builder webClientBuilder, ObjectMapper objectMapper) {
+                            WebClient.Builder webClientBuilder, ObjectMapper objectMapper,
+                            TagRepository tagRepository, CooccurrenceRepository cooccurrenceRepository) {
         this.gameRepository = gameRepository;
         this.redisTemplate = redisTemplate;
         this.webClientBuilder = webClientBuilder;
         this.objectMapper = objectMapper;
+        this.tagRepository = tagRepository;
+        this.cooccurrenceRepository=cooccurrenceRepository;
     }
 
     @Transactional(readOnly=true)
@@ -94,6 +106,9 @@ public class RecommendService {
             return toResult(cachingTags, game);
         }
 
+        boolean hit = cachingTags != null && !cachingTags.isEmpty();
+        log.info("… 캐시 히트: {}", hit);
+
         String prompt = buildPrompt(input);
 
         Map<String,Object> body = Map.of(
@@ -107,13 +122,8 @@ public class RecommendService {
                 .uri(GEMINI_URL + "?key=" + gemini_api_key)
                 .bodyValue(body)
                 .retrieve()
-                .onStatus(
-                        HttpStatusCode::isError,
-                        (ClientResponse clientResponse) ->
-                                Mono.error(new RuntimeException(
-                                        "Gemini API 오류: "
-                                                + clientResponse.statusCode().value()
-                                ))
+                .onStatus(HttpStatusCode::isError, resp ->
+                        Mono.error(new ResponseStatusException(resp.statusCode(), "Gemini API 오류"))
                 )
                 .bodyToMono(String.class)
                 .timeout(Duration.ofSeconds(5))
@@ -133,6 +143,101 @@ public class RecommendService {
         // 최종 추천
         SteamDTO.SteamApp game = findGame(tags, 500, true);
         return toResult(Arrays.asList(tags), game);
+    }
+
+    public SteamDTO.RecommendationResult recommendByProfile(String steamId){
+        List<String> topTags = getTopTagsByProfile(steamId,4);
+
+        if(topTags.isEmpty()){
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "플레이한 게임이 없거나 태그를 찾을 수 없습니다."
+            );
+        }
+
+        SteamDTO.SteamApp game = recommendWithCooccurrence(topTags.toArray(new String[0]));
+
+        return new SteamDTO.RecommendationResult(topTags, game);
+    }
+
+    public SteamDTO.SteamApp recommendWithCooccurrence(String[] topTags) {
+        for (int i = 0; i < topTags.length; i++) {
+            for (int j = i + 1; j < topTags.length; j++) {
+                String t1 = topTags[i], t2 = topTags[j];
+
+                String tag1 = t1.compareTo(t2) < 0 ? t1 : t2;
+                String tag2 = t1.compareTo(t2) < 0 ? t2 : t1;
+
+                Optional<TagCooccurrence> opt =
+                        cooccurrenceRepository.findById(new TagPairKey(tag1, tag2));
+                if (opt.isPresent() && opt.get().getCount() >= CO_THRESHOLD) {
+                    return findGame(
+                            new String[]{tag1, tag2}, 500, true);
+                }
+            }
+        }
+
+        for (String tag : topTags) {
+            try {
+                return findGame(
+                        new String[]{tag}, 500, true);
+            } catch (ResponseStatusException ignored) {}
+        }
+
+        throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "추천 가능한 게임이 없습니다.");
+    }
+
+    public List<String>  getTopTagsByProfile(String steamId,int topN){
+        List<Long> appids = fetchOwnedAppIdsByProfile(steamId);
+
+        if(appids.isEmpty()){
+            return List.of();
+        }
+
+        List<String> allTags = tagRepository.findTagNamesByAppIds(appids);
+        Map<String, Long> counts = allTags.stream()
+                .collect(Collectors.groupingBy(
+                        Function.identity(), Collectors.counting()));
+
+        return counts.entrySet()
+                .stream()
+                .sorted(Map.Entry.<String,Long>comparingByValue(Comparator.reverseOrder()))
+                .limit(topN)
+                .map(Map.Entry::getKey)
+                .toList();
+    }
+
+    public List<Long> fetchOwnedAppIdsByProfile (String steamId) {
+        String url = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/";
+        String response = webClientBuilder.build()
+                .get()
+                .uri(uri -> uri
+                        .path(url)
+                        .queryParam("key", steam_api_key)
+                        .queryParam("steamid", steamId)
+                        .queryParam("include_appinfo", "false")
+                        .queryParam("include_played_free_games", "true")
+                        .build())
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+        try {
+            JsonNode games = objectMapper
+                    .readTree(response)
+                    .path("response")
+                    .path("games");
+
+            List<Long> appids = new ArrayList<>();
+            for (JsonNode g : games) {
+                // playtime_forever 필터링도 가능
+                appids.add(g.path("appid").asLong());
+            }
+            return appids;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "Steam API 호출 실패", e);
+        }
     }
 
     private String buildPrompt(String input) {
