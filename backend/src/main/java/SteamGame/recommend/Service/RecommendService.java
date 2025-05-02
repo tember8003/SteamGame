@@ -146,7 +146,7 @@ public class RecommendService {
     }
 
     public SteamDTO.RecommendationResult recommendByProfile(String steamId){
-        List<String> topTags = getTopTagsByProfile(steamId,4);
+        List<String> topTags = getTopTagsByProfile(steamId,8);
 
         if(topTags.isEmpty()){
             throw new ResponseStatusException(
@@ -154,9 +154,27 @@ public class RecommendService {
             );
         }
 
-        SteamDTO.SteamApp game = recommendWithCooccurrence(topTags.toArray(new String[0]));
+        /* 상위 태그 2개 - 랜덤 태그 2개 로직
+        List<String> selectedTags = new ArrayList<>();
+        selectedTags.add(topTags.get(0));
+        if (topTags.size() > 1) {
+            selectedTags.add(topTags.get(1));
+        }
 
-        return new SteamDTO.RecommendationResult(topTags, game);
+        List<String> rest = new ArrayList<>();
+        if (topTags.size() > 2) {
+            rest.addAll(topTags.subList(2, topTags.size()));
+            Collections.shuffle(rest);
+            for (int i = 0; i < 2 && i < rest.size(); i++) {
+                selectedTags.add(rest.get(i));
+            }
+        }
+         */
+        List<String> tags = shuffleTag(topTags,3,5);
+
+        SteamDTO.SteamApp game = recommendWithCooccurrence(tags.toArray(new String[0]));
+
+        return new SteamDTO.RecommendationResult(tags, game);
     }
 
     public SteamDTO.SteamApp recommendWithCooccurrence(String[] topTags) {
@@ -212,7 +230,9 @@ public class RecommendService {
         String response = webClientBuilder.build()
                 .get()
                 .uri(uri -> uri
-                        .path(url)
+                        .scheme("https")
+                        .host("api.steampowered.com")
+                        .path("/IPlayerService/GetOwnedGames/v1/")
                         .queryParam("key", steam_api_key)
                         .queryParam("steamid", steamId)
                         .queryParam("include_appinfo", "false")
@@ -231,13 +251,25 @@ public class RecommendService {
             List<Long> appids = new ArrayList<>();
             for (JsonNode g : games) {
                 // playtime_forever 필터링도 가능
+                log.info(g.path("appid").toString());
                 appids.add(g.path("appid").asLong());
             }
+
             return appids;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Steam API 호출 실패", e);
         }
+    }
+
+    //게임 랜덤 추천 셔플용
+    private List<String> shuffleTag(List<String> topTags, int min, int max){
+        List<String> shuffled = new ArrayList<>(topTags);
+
+        Collections.shuffle(shuffled);
+
+        int k = min + new Random().nextInt(max - min + 1);
+        return shuffled.subList(0, Math.min(k, shuffled.size()));
     }
 
     private String buildPrompt(String input) {
