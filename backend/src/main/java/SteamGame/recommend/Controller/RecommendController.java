@@ -29,4 +29,9 @@ public class RecommendController {
             @RequestBody Map<String, String> body) {
         return recommendService.selectInfo(body.get("input"));
     }
+
+    @PostMapping("/recommend/profile")
+    public SteamDTO.RecommendationResult randomGameByProfile(@RequestBody Map<String,String> body){
+        return recommendService.recommendByProfile(body.get("steamId"));
+    }
 }

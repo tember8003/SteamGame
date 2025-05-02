@@ -1,7 +1,9 @@
 package SteamGame.recommend.DTO;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.List;
@@ -31,6 +33,7 @@ public class SteamDTO {
     }
 
     //태그와 게임 정보 함께 반환하기 -> 우선 SteamDTO에 함께 둠.
+    @AllArgsConstructor @NoArgsConstructor
     @Getter @Setter
     public static class RecommendationResult {
         private List<String> usedTags;
