@@ -60,6 +60,7 @@ jobs:
           DB_PASSWORD: test
           STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY}}
+          API_KEY: ${{ secrets.API_KEY}}
 
     # NOTE: The Gradle Wrapper is the default and recommended way to run Gradle (https://docs.gradle.org/current/userguide/gradle_wrapper.html).
     # If your project does not have the Gradle Wrapper configured, you can use the following configuration to run Gradle with a specified version.
