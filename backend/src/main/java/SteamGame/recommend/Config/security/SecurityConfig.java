@@ -13,6 +13,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.util.Arrays;
 import java.util.List;
@@ -21,12 +22,14 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig  {
     private final ApiKeyFilter apiKeyFilter;
+    private final RateLimitingFilter rateLimitingFilter;
 
     @Value("${app.cors.allowed-origins}")
     private String[] allowedOrigins;
 
-    public SecurityConfig(ApiKeyFilter apiKeyFilter) {
+    public SecurityConfig(ApiKeyFilter apiKeyFilter, RateLimitingFilter rateLimitingFilter) {
         this.apiKeyFilter = apiKeyFilter;
+        this.rateLimitingFilter = rateLimitingFilter;
     }
 
     @Bean
@@ -38,7 +41,7 @@ public class SecurityConfig  {
         corsConfiguration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**",corsConfiguration);
+        source.registerCorsConfiguration("/api/recommend/**",corsConfiguration);
         return source;
     }
 
@@ -56,6 +59,7 @@ public class SecurityConfig  {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/recommend/**").permitAll()
                 )
+                .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class)
                 .httpBasic(Customizer.withDefaults());
 
