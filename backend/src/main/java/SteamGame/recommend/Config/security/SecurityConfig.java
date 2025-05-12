@@ -41,7 +41,7 @@ public class SecurityConfig  {
         corsConfiguration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/recommend/**",corsConfiguration);
+        source.registerCorsConfiguration("/api/**",corsConfiguration);
         return source;
     }
 
@@ -59,8 +59,16 @@ public class SecurityConfig  {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/recommend/**").permitAll()
                 )
-                .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
+                .headers(headers -> headers
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31536000))
+                        .contentTypeOptions(Customizer.withDefaults())
+                        .frameOptions(frame -> frame.deny())
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("default-src 'self'; img-src 'self' data:;")))
                 .addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter (rateLimitingFilter, ApiKeyFilter.class)
                 .httpBasic(Customizer.withDefaults());
 
                 // TODO: 서버 실행 후엔 모든 요청 https로 요구하기
