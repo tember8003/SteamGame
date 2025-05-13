@@ -57,7 +57,7 @@ public class SecurityConfig  {
                 .formLogin(AbstractHttpConfigurer::disable)
                 // TODO: 나중에 필요시 권한 수정
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/recommend/**").permitAll()
+                        .requestMatchers("/api/**").permitAll()
                 )
                 .headers(headers -> headers
                         .httpStrictTransportSecurity(hsts -> hsts

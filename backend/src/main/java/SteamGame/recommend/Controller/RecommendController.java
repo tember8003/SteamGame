@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/recommend")
 public class RecommendController {
 
     private final RecommendService recommendService;
@@ -16,7 +16,7 @@ public class RecommendController {
         this.recommendService = service;
     }
 
-    @GetMapping("/recommend/random")
+    @GetMapping("/random")
     public SteamDTO.SteamApp randomGame(
             @RequestParam String[] tags,
             @RequestParam int review,
@@ -24,14 +24,14 @@ public class RecommendController {
         return recommendService.findGame(tags, review, korean_check);
     }
 
-    @PostMapping("/recommend/input")
+    @PostMapping("/input")
     public SteamDTO.RecommendationResult inputRandomGame(
             @RequestBody Map<String, String> body) {
         return recommendService.selectInfo(body.get("input"));
     }
 
-    @PostMapping("/recommend/profile")
-    public SteamDTO.RecommendationResult randomGameByProfile(@RequestBody Map<String,String> body){
+    @PostMapping("/profile")
+    public SteamDTO.RecommendationResult randomGameByProfile(@RequestBody Map<String,String> body) {
         return recommendService.recommendByProfile(body.get("steamId"));
     }
 }
