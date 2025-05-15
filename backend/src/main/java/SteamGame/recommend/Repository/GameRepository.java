@@ -19,11 +19,12 @@ public interface GameRepository extends JpaRepository<Game, Long> {
         WHERE t.name IN :tagNames
             AND g.review_count >= :review
             AND (:korean_check = false OR g.korean_support = true)
+            AND (:free IS NULL OR g.is_free = :free)
         GROUP BY g.id
         HAVING COUNT(DISTINCT t.name) = :tagCount
         ORDER BY RAND()
         LIMIT 1
     """, nativeQuery = true)
-    Optional<Game> findRandomGameByTags(@Param("tagNames") List<String> tagNames, @Param("tagCount") long tagCount, @Param("review") int review, @Param("korean_check") boolean korean_check);
+    Optional<Game> findRandomGameByTags(@Param("tagNames") List<String> tagNames, @Param("tagCount") long tagCount, @Param("review") int review, @Param("korean_check") boolean korean_check,@Param("free") Boolean free);
 
 }

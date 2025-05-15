@@ -20,8 +20,9 @@ public class RecommendController {
     public SteamDTO.SteamApp randomGame(
             @RequestParam String[] tags,
             @RequestParam int review,
-            @RequestParam boolean korean_check) {
-        return recommendService.findGame(tags, review, korean_check);
+            @RequestParam(defaultValue = "false") boolean korean_check,
+            @RequestParam(required = false) Boolean free_check) {
+        return recommendService.findGame(tags, review, korean_check, free_check);
     }
 
     @PostMapping("/input")
@@ -33,5 +34,10 @@ public class RecommendController {
     @PostMapping("/profile")
     public SteamDTO.RecommendationResult randomGameByProfile(@RequestBody Map<String,String> body) {
         return recommendService.recommendByProfile(body.get("steamId"));
+    }
+
+    @PostMapping("/RecentPlay")
+    public SteamDTO.RecommendationResult randomGameByRecentPlay(@RequestBody Map<String,String> body){
+        return recommendService.recommendByRecentPlay(body.get("steamId"));
     }
 }
