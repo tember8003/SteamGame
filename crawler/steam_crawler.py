@@ -75,17 +75,22 @@ def fetch_tags_from_store(appid):
         return []
 
 # DB insert 함수 (한국어 지원 여부 및 리뷰 수 포함)
-def insert_game_and_tags(appid, name, description, image_url, tags, review_count, korean_support):
-    print(f"Inserting: {appid} - {name} / 리뷰수: {review_count} / 한국어: {korean_support} / 태그: {tags}")
+def insert_game_and_tags(appid, name, description, image_url, tags, review_count, korean_support, is_free):
+    print(f"Inserting: {appid} - {name} / 리뷰수: {review_count} / 한국어: {korean_support} / 무료: {is_free} / 태그: {tags}")
     try:
-        # 게임 삽입
         cursor.execute("""
-            INSERT INTO games (appid, name, description, image_url, review_count, korean_support)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE name=%s
-        """, (appid, name, description, image_url, review_count, korean_support, name))
+            INSERT INTO games
+                (appid, name, description, image_url, review_count, korean_support, is_free)
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
+            ON DUPLICATE KEY UPDATE
+                name=VALUES(name),
+                description=VALUES(description),
+                image_url=VALUES(image_url),
+                review_count=VALUES(review_count),
+                korean_support=VALUES(korean_support),
+                is_free=VALUES(is_free)
+        """, (appid, name, description, image_url, review_count, korean_support, is_free))
         conn.commit()
-
         # 게임 ID 조회
         cursor.execute("SELECT id FROM games WHERE appid = %s", (appid,))
         game_id = cursor.fetchone()[0]
@@ -144,15 +149,21 @@ for i in range(last_processed_index, min(len(apps), last_processed_index + 30000
         review_count = details.get("recommendations", {}).get("total", 0)
         lang_html = details.get("supported_languages", "")
 
-        print(f"지원 언어(raw): {lang_html}")
+        is_free = False
+        if details.get("is_free") is True:
+            is_free = True
+        elif any(g.get("description") == "무료 플레이" for g in details.get("genres", [])):
+            is_free = True
+        else:
+            po = details.get("price_overview")
+            if po and po.get("initial", 1) == 0:
+                is_free = True
 
         korean_supported = is_korean_supported(lang_html)
-        print(f"리뷰: {review_count} / 한국어 지원: {korean_supported}")
 
         tags = fetch_tags_from_store(appid)
-        print(f"태그 {len(tags)}개 크롤링됨")
 
-        insert_game_and_tags(appid, name, description, image_url, tags, review_count, korean_supported)
+        insert_game_and_tags(appid, name, description, image_url, tags, review_count, korean_supported, is_free)
         print(f"DB 저장 완료: {appid} - {name}")
 
         time.sleep(random.uniform(1, 2.5))
@@ -184,8 +195,19 @@ if os.path.exists("failed_appids.txt"):
         lang_html = details.get("supported_languages", "")
         korean_supported = is_korean_supported(lang_html)
 
+        is_free = False
+
+        if details.get("is_free") is True:
+            is_free = True
+        elif any(g.get("description") == "무료 플레이" for g in details.get("genres", [])):
+            is_free = True
+        else:
+            po = details.get("price_overview")
+            if po and po.get("initial", 1) == 0:
+                is_free = True
+
         tags = fetch_tags_from_store(appid)
-        insert_game_and_tags(appid, name, description, image_url, tags, review_count, korean_supported)
+        insert_game_and_tags(appid, name, description, image_url, tags, review_count, korean_supported, is_free)
         time.sleep(random.uniform(1, 2.5))
 
 cursor.close()

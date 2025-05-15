@@ -66,11 +66,11 @@ public class RecommendService {
     }
 
     @Transactional(readOnly=true)
-    public SteamDTO.SteamApp findGame(String[] tags, int review, boolean korean_check) {
+    public SteamDTO.SteamApp findGame(String[] tags, int review, boolean korean_check, Boolean free_check) {
         List<String> tagList = Arrays.asList(tags);
 
         for (int i = 0; i < 5; i++) {
-            Optional<Game> optionalGame = gameRepository.findRandomGameByTags(tagList, tagList.size(), review, korean_check);
+            Optional<Game> optionalGame = gameRepository.findRandomGameByTags(tagList, tagList.size(), review, korean_check , free_check);
 
             if (optionalGame.isEmpty()) {
                 throw new ResponseStatusException(
@@ -101,8 +101,7 @@ public class RecommendService {
         //캐시 검사
         List<String> cachingTags = redisTemplate.opsForList().range(redisKey, 0, -1);
         if (cachingTags != null && !cachingTags.isEmpty()) {
-            SteamDTO.SteamApp game = findGame(
-                    cachingTags.toArray(new String[0]), 500, true);
+            SteamDTO.SteamApp game = findGame(cachingTags.toArray(new String[0]), 500, true,null);
             return toResult(cachingTags, game);
         }
 
@@ -141,7 +140,7 @@ public class RecommendService {
         redisTemplate.expire(redisKey, Duration.ofHours(6));
 
         // 최종 추천
-        SteamDTO.SteamApp game = findGame(tags, 500, true);
+        SteamDTO.SteamApp game = findGame(tags, 500, true,null);
         return toResult(Arrays.asList(tags), game);
     }
 
@@ -189,15 +188,14 @@ public class RecommendService {
                         cooccurrenceRepository.findById(new TagPairKey(tag1, tag2));
                 if (opt.isPresent() && opt.get().getCount() >= CO_THRESHOLD) {
                     return findGame(
-                            new String[]{tag1, tag2}, 500, true);
+                            new String[]{tag1, tag2}, 500, true,null);
                 }
             }
         }
 
         for (String tag : topTags) {
             try {
-                return findGame(
-                        new String[]{tag}, 500, true);
+                return findGame(new String[]{tag}, 500, true,null);
             } catch (ResponseStatusException ignored) {}
         }
 
@@ -226,7 +224,6 @@ public class RecommendService {
     }
 
     public List<Long> fetchOwnedAppIdsByProfile (String steamId) {
-        String url = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/";
         String response = webClientBuilder.build()
                 .get()
                 .uri(uri -> uri
@@ -260,6 +257,57 @@ public class RecommendService {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Steam API 호출 실패", e);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public SteamDTO.RecommendationResult recommendByRecentPlay(String steamId) {
+        String json = webClientBuilder.build()
+                .get()
+                .uri(uri -> uri
+                        .scheme("https")
+                        .host("api.steampowered.com")
+                        .path("/IPlayerService/GetRecentlyPlayedGames/v1/")
+                        .queryParam("key", steam_api_key)
+                        .queryParam("steamid", steamId)
+                        .queryParam("format", "json")
+                        .build()
+                )
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+        List<Long> recentAppIds = new ArrayList<>();
+        try {
+            JsonNode games = objectMapper.readTree(json)
+                    .path("response")
+                    .path("games");
+            for (JsonNode g : games) {
+                recentAppIds.add(g.path("appid").asLong());
+            }
+        } catch (Exception e) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY, "Steam API 호출 실패", e);
+        }
+
+        if (recentAppIds.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "최근 플레이한 게임이 없습니다.");
+        }
+
+        List<String> allTags = tagRepository.findTagNamesByAppIds(recentAppIds);
+        Map<String, Long> counts  = allTags.stream()
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+
+        List<String> topTags = counts.entrySet().stream()
+                .sorted(Map.Entry.<String,Long>comparingByValue(Comparator.reverseOrder()))
+                .limit(4)
+                .map(Map.Entry::getKey)
+                .toList();
+
+        SteamDTO.SteamApp game = findGame(
+                topTags.toArray(new String[0]), 500, true, null);
+
+        return new SteamDTO.RecommendationResult(topTags, game);
     }
 
     //게임 랜덤 추천 셔플용
@@ -371,5 +419,4 @@ public class RecommendService {
             throw new RuntimeException("SHA-256 실패", e);
         }
     }
-
 }
