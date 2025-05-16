@@ -42,6 +42,7 @@ public class RecommendService {
     private final TagRepository tagRepository;
     private final CooccurrenceRepository cooccurrenceRepository;
     private static final int CO_THRESHOLD = 5;
+    private static final int DEFAULT_REVIEW= 1000;
 
     //TODO : 스팀 API APP DETAIL에서 정보 가져오기
     @Value("${steam.api.key}")
@@ -101,7 +102,7 @@ public class RecommendService {
         //캐시 검사
         List<String> cachingTags = redisTemplate.opsForList().range(redisKey, 0, -1);
         if (cachingTags != null && !cachingTags.isEmpty()) {
-            SteamDTO.SteamApp game = findGame(cachingTags.toArray(new String[0]), 500, true,null);
+            SteamDTO.SteamApp game = findGame(cachingTags.toArray(new String[0]), DEFAULT_REVIEW, true,null);
             return toResult(cachingTags, game);
         }
 
@@ -140,7 +141,7 @@ public class RecommendService {
         redisTemplate.expire(redisKey, Duration.ofHours(6));
 
         // 최종 추천
-        SteamDTO.SteamApp game = findGame(tags, 500, true,null);
+        SteamDTO.SteamApp game = findGame(tags, DEFAULT_REVIEW, true,null);
         return toResult(Arrays.asList(tags), game);
     }
 
@@ -188,14 +189,14 @@ public class RecommendService {
                         cooccurrenceRepository.findById(new TagPairKey(tag1, tag2));
                 if (opt.isPresent() && opt.get().getCount() >= CO_THRESHOLD) {
                     return findGame(
-                            new String[]{tag1, tag2}, 500, true,null);
+                            new String[]{tag1, tag2}, DEFAULT_REVIEW, true,null);
                 }
             }
         }
 
         for (String tag : topTags) {
             try {
-                return findGame(new String[]{tag}, 500, true,null);
+                return findGame(new String[]{tag}, DEFAULT_REVIEW, true,null);
             } catch (ResponseStatusException ignored) {}
         }
 
@@ -300,14 +301,16 @@ public class RecommendService {
 
         List<String> topTags = counts.entrySet().stream()
                 .sorted(Map.Entry.<String,Long>comparingByValue(Comparator.reverseOrder()))
-                .limit(4)
+                .limit(6)
                 .map(Map.Entry::getKey)
                 .toList();
 
-        SteamDTO.SteamApp game = findGame(
-                topTags.toArray(new String[0]), 500, true, null);
+        List<String> tags = shuffleTag(topTags,3,4);
 
-        return new SteamDTO.RecommendationResult(topTags, game);
+        SteamDTO.SteamApp game = findGame(
+                tags.toArray(new String[0]), DEFAULT_REVIEW, true, null);
+
+        return new SteamDTO.RecommendationResult(tags, game);
     }
 
     //게임 랜덤 추천 셔플용
