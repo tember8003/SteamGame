@@ -1,13 +1,10 @@
-package SteamGame.recommend.service;
+package SteamGame.recommend.service.application;
 
-import SteamGame.recommend.dto.SteamDTO;
 import SteamGame.recommend.entity.TagCooccurrence;
 import SteamGame.recommend.entity.TagPairKey;
 import SteamGame.recommend.repository.CooccurrenceRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;

@@ -1,4 +1,4 @@
-package SteamGame.recommend.service;
+package SteamGame.recommend.service.application;
 
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
