@@ -1,7 +1,8 @@
 package SteamGame.recommend.controller;
 
 import SteamGame.recommend.dto.SteamDTO;
-import SteamGame.recommend.service.RecommendService;
+
+import SteamGame.recommend.service.application.RecommendService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,8 +14,8 @@ public class RecommendController {
 
     private final RecommendService recommendService;
 
-    public RecommendController(RecommendService service) {
-        this.recommendService = service;
+    public RecommendController(RecommendService recommendService) {
+        this.recommendService = recommendService;
     }
 
     @GetMapping("/recommend/random")
